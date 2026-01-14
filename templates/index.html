@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Consumption Visualizer</title>
+  <link rel="stylesheet" href="static/style.css">
+  <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
+</head>
+<body>
+  <h1>Project Consumption Dashboard</h1>
+
+
+
+    <div class="controls">
+    <!-- Drop‑down for Project ID -->
+    <label for="project-id">Project:</label>
+    <select id="project-id">
+      <option value="" disabled selected>-- Select Project --</option>
+      <!-- Options will be inserted by JS -->
+    </select>
+    <button id="load-btn">Load Data</button>
+  </div>
+
+  <div id="charts">
+    <div id="daily-chart"></div>
+    <div id="hourly-chart"></div>
+    <div id="monthly-chart"></div>
+  </div>
+
+  <script>
+        /* --------- Populate project‑id drop‑down --------- */
+    async function loadProjectIds() {
+      const resp = await fetch('/api/projectids');
+      const ids  = await resp.json();          // expects: ["projA","projB", ...]
+      const sel  = document.getElementById('project-id');
+
+      // clear old options (except placeholder)
+      sel.options.length = 1;                 // keep the first placeholder
+
+      ids.forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = id;
+        sel.appendChild(opt);
+      });
+    }
+    loadProjectIds();                         // run once on page load
+
+
+    const loadBtn = document.getElementById('load-btn');
+    loadBtn.addEventListener('click', () => {
+      const proj = document.getElementById('project-id').value.trim();
+      if (!proj) return alert('Please enter a project ID');
+
+      // Helper to fetch and plot
+      async function fetchAndPlot(endpoint, chartId, title) {
+        const res = await fetch(`${endpoint}?project_id=${proj}`);
+        const data = await res.json();
+
+        // Transform into arrays suitable for Plotly
+        const x = data.map(row => row.timeframe_start);
+        const yActive = data.map(row => row.active_time_seconds);
+        const yCompute = data.map(row => row.compute_time_seconds);
+        const yWritten = data.map(row => row.written_data_bytes);
+        const yStorage = data.map(row => row.synthetic_storage_size_bytes);
+
+        const traces = [
+          { x, y: yActive, type: 'scatter', mode: 'lines+markers', name: 'Active Time' },
+          { x, y: yCompute, type: 'scatter', mode: 'lines+markers', name: 'Compute Time' },
+          { x, y: yWritten, type: 'scatter', mode: 'lines+markers', name: 'Written Data' },
+          { x, y: yStorage, type: 'scatter', mode: 'lines+markers', name: 'Storage Size' },
+        ];
+
+        const layout = {
+          title,
+          xaxis: { title: 'Time' },
+          yaxis: { title: 'Seconds / Bytes' },
+          responsive: true
+        };
+
+        Plotly.newPlot(chartId, traces, layout);
+      }
+
+      // Load all three charts
+      fetchAndPlot('/api/consumption/daily', 'daily-chart', 'Daily Consumption');
+      fetchAndPlot('/api/consumption/hourly', 'hourly-chart', 'Hourly Consumption');
+      fetchAndPlot('/api/consumption/monthly', 'monthly-chart', 'Monthly Consumption');
+    });
+  </script>
+</body>
+</html>
