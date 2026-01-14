@@ -8,8 +8,8 @@ app = Flask(__name__)
 # ------------------------------------------------------------------
 # 1️⃣  Connection setup – read from env or hard‑code temporarily
 # ------------------------------------------------------------------
-# Example: "postgresql://user:password@localhost:5432/consumptiondb"
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_rv1ZwgBuaQ0i@ep-fancy-tooth-abmztkxj-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+# Example:""postgresql://neondb_owner:npg_abcdefg@ep-gold-treasure-abcdefgh-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_abcdefg@ep-gold-treasure-abcdefgh-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
