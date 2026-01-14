@@ -15,15 +15,19 @@
     <!-- Drop‑down for Project ID -->
     <label for="project-id">Project:</label>
     <select id="project-id">
-      <option value="" disabled selected>-- Select Project --</option>
-      <!-- Options will be inserted by JS -->
+      <!-- <option value="" ></option>    -->
     </select>
-    <button id="load-btn">Load Data</button>
+    <select id="timescale">
+      <option value="hourly">Hourly</option>
+      <option value="daily">Daily</option>
+      <option value="monthly">Monthly</option>
+    </select>
+
   </div>
 
   <div id="charts">
-    <div id="daily-chart"></div>
     <div id="hourly-chart"></div>
+    <div id="daily-chart"></div>
     <div id="monthly-chart"></div>
   </div>
 
@@ -31,11 +35,8 @@
         /* --------- Populate project‑id drop‑down --------- */
     async function loadProjectIds() {
       const resp = await fetch('/api/projectids');
-      const ids  = await resp.json();          // expects: ["projA","projB", ...]
+      const ids  = await resp.json(); 
       const sel  = document.getElementById('project-id');
-
-      // clear old options (except placeholder)
-      sel.options.length = 1;                 // keep the first placeholder
 
       ids.forEach(id => {
         const opt = document.createElement('option');
@@ -44,14 +45,31 @@
         sel.appendChild(opt);
       });
     }
-    loadProjectIds();                         // run once on page load
 
+    const renderGraph = () => {
+      document.getElementById('hourly-chart').style.display = 'none';
+      document.getElementById('daily-chart').style.display = 'none';
+      document.getElementById('monthly-chart').style.display = 'none';
 
-    const loadBtn = document.getElementById('load-btn');
-    loadBtn.addEventListener('click', () => {
+      const timescale = document.getElementById('timescale').value.trim();
+      switch (timescale) {
+        case 'hourly':
+          document.getElementById('hourly-chart').style.display = 'block';
+          return ['/api/consumption/hourly', 'hourly-chart', 'Hourly Consumption'];
+        case 'daily':
+          document.getElementById('daily-chart').style.display = 'block';
+          return ['/api/consumption/daily', 'daily-chart', 'Daily Consumption'];
+        case 'monthly':
+          document.getElementById('monthly-chart').style.display = 'block';
+          return ['/api/consumption/monthly', 'monthly-chart', 'Monthly Consumption'];
+        default:
+          return null;
+      }
+    };
+
+    const dorender = () => {
       const proj = document.getElementById('project-id').value.trim();
-      if (!proj) return alert('Please enter a project ID');
-
+      
       // Helper to fetch and plot
       async function fetchAndPlot(endpoint, chartId, title) {
         const res = await fetch(`${endpoint}?project_id=${proj}`);
@@ -80,12 +98,17 @@
 
         Plotly.newPlot(chartId, traces, layout);
       }
+      
+      const params = renderGraph();
+      fetchAndPlot(params[0],params[1],params[2]);
+    }
 
-      // Load all three charts
-      fetchAndPlot('/api/consumption/daily', 'daily-chart', 'Daily Consumption');
-      fetchAndPlot('/api/consumption/hourly', 'hourly-chart', 'Hourly Consumption');
-      fetchAndPlot('/api/consumption/monthly', 'monthly-chart', 'Monthly Consumption');
-    });
+    document.getElementById('timescale').addEventListener('change', dorender);
+    document.getElementById('project-id').addEventListener('change', dorender);
+
+    loadProjectIds();        
+    dorender();
+   
   </script>
 </body>
 </html>
