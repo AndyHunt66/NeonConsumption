@@ -71,10 +71,7 @@ def fetch_monthly() -> list:
         "%Y-%m-%dT00:00:00Z"
     )
     start = (
-        datetime.datetime.utcnow()
-        .date()
-        .replace(day=1)
-        . - datetime.timedelta(days=335)
+        datetime.datetime.utcnow().date().replace(day=1) - datetime.timedelta(days=300)
     ).strftime("%Y-%m-%dT00:00:00Z")
     return fetch_all(
         "/projects",
