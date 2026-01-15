@@ -1,2 +1,9 @@
-body { font-family: Arial, sans-serif; margin: 20px; }
-#charts > div { margin-top: 40px; }
+body{font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;margin:0;display:flex;flex-direction:column;min-height:100vh;background:#f4f7fa;color:#333;}
+h1{font-size:1.8rem;margin:1rem auto;text-align:center;}
+.controls{display:flex;gap:1rem;align-items:center;margin:1rem auto;width:90%;max-width:800px;flex-wrap:wrap;}
+.controls label{margin-right:.5rem;}
+#project-list{display:flex;gap:.5rem;flex-wrap:wrap;}
+.tab-btn{background:#fff;border:1px solid #ccc;border-bottom:none;padding:.5rem 1rem;cursor:pointer;border-top-left-radius:.25rem;border-top-right-radius:.25rem;}
+.tab-btn.active{background:#fff;border-color:#fff #ccc #ccc #ccc;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+#charts{padding:1rem;background:#fff;margin:0 auto;width:90%;max-width:1000px;box-shadow:0 2px 8px rgba(0,0,0,.1);border-radius:.25rem;}
+#charts > div{display:none; margin-bottom:2rem;}

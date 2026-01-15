@@ -1,45 +1,42 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Consumption Visualizer</title>
-  <link rel="stylesheet" href="static/style.css">
-  <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
-  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
-  
-  <style>#charts div{margin-bottom:30px;}</style>
+<meta charset="utf-8">
+<title>Consumption Visualizer</title>
+<link rel="stylesheet" href="static/style.css">
+<script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+
+
 </head>
+
 <body>
-  <h1>Project Consumption Dashboard</h1>
-  <div class="controls">
+<h1>Project Consumption Dashboard</h1>
+
+<div class="controls">
   <label>Project:</label>
   <div id="project-list"></div>          <!-- check‑boxes go here -->
-  <label for="timescale">Timescale:</label>
-  <select id="timescale">
-    <option value="hourly">Hourly</option>
-    <option value="daily">Daily</option>
-    <option value="monthly">Monthly</option>
-  </select>
-</div>
-  
-  
-  
-  <div id="charts">
-    <div id="hourly-active"></div>
-    <div id="hourly-compute"></div>
-    <div id="hourly-written"></div>
-    <div id="hourly-storage"></div>
-
-    <div id="daily-active"></div>
-    <div id="daily-compute"></div>
-    <div id="daily-written"></div>
-    <div id="daily-storage"></div>
-
-    <div id="monthly-active"></div>
-    <div id="monthly-compute"></div>
-    <div id="monthly-written"></div>
-    <div id="monthly-storage"></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-scale="hourly">Hourly</button>
+    <button class="tab-btn" data-scale="daily">Daily</button>
+    <button class="tab-btn" data-scale="monthly">Monthly</button>
   </div>
+</div>
+
+<div id="charts">
+  <div id="hourly-active"></div>
+  <div id="hourly-compute"></div>
+  <div id="hourly-written"></div>
+  <div id="hourly-storage"></div>
+  <div id="daily-active"></div>
+  <div id="daily-compute"></div>
+  <div id="daily-written"></div>
+  <div id="daily-storage"></div>
+  <div id="monthly-active"></div>
+  <div id="monthly-compute"></div>
+  <div id="monthly-written"></div>
+  <div id="monthly-storage"></div>
+</div>
 
 <script>
 async function loadProjectIds() {
@@ -59,17 +56,13 @@ async function loadProjectIds() {
     list.appendChild(document.createElement('br'));
   });
 }
- /* ----- Build & show graphs ----- */
-async function dorender() {
-  const timescale = document.getElementById('timescale').value.trim();
+
+async function dorender(timescale) {
   const projects  = Array.from(document.querySelectorAll('.proj-chk:checked'))
                          .map(chk=>chk.value);
-
   document.querySelectorAll('#charts > div').forEach(d=>d.style.display='none');
+  if (!projects.length) return;
 
-  if (!projects.length) return;              // nothing selected → nothing shown
-
-  const prefix = timescale;                   // "hourly","daily","monthly"
   const metrics = ['active','compute','written','storage'];
   const metricNames = {
     active:   'Active Time (seconds)',
@@ -82,20 +75,13 @@ async function dorender() {
     daily:  '%Y-%m-%d',
     monthly:'%Y %b'
   }[timescale];
-
-  /* show the four charts for this timescale */
-  metrics.forEach(m=>document.getElementById(`${prefix}-${m}`).style.display='block');
-
-  /* colour scheme */
+  metrics.forEach(m=>document.getElementById(`${timescale}-${m}`).style.display='block');
 
   const colors = d3.scale.category10();
- 
-  /* build one trace per project per metric */
   const traces = {};
   await Promise.all(projects.map(async (proj,idx)=>{
     const res  = await fetch(`/api/consumption/${timescale}?project_id=${proj}`);
     const data = await res.json();
-
     const x = data.map(r=>new Date(r.timeframe_start));
     const y = {
       active:   data.map(r=>r.active_time_seconds),
@@ -103,7 +89,6 @@ async function dorender() {
       written:  data.map(r=>r.written_data_bytes),
       storage:  data.map(r=>r.synthetic_storage_size_bytes)
     };
-
     metrics.forEach(m=>{
       if (!traces[m]) traces[m]=[];
       traces[m].push({
@@ -115,8 +100,6 @@ async function dorender() {
       });
     });
   }));
-
-  /* plot each metric */
   metrics.forEach(m=>{
     const layout = {
       title: metricNames[m],
@@ -125,16 +108,24 @@ async function dorender() {
       legend: { x:1, y:0.5, bgcolor:'rgba(255,255,255,0.5)' },
       responsive:true
     };
-    Plotly.newPlot(`${prefix}-${m}`, traces[m], layout);
+    Plotly.newPlot(`${timescale}-${m}`, traces[m], layout);
   });
 }
 
-/* event hooks */
-document.getElementById('timescale').addEventListener('change', dorender);
-document.getElementById('project-list').addEventListener('change', dorender);
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', e=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    dorender(btn.dataset.scale);
+  });
+});
 
-/* init */
-loadProjectIds().then(dorender);
+document.getElementById('project-list').addEventListener('change', () => {
+  const activeBtn = document.querySelector('.tab-btn.active');
+  dorender(activeBtn.dataset.scale);
+});
+
+loadProjectIds().then(()=>dorender('hourly'));
 </script>
 </body>
 </html>
