@@ -39,79 +39,102 @@
     <div id="monthly-storage"></div>
   </div>
 
-  <script>
-    /* -------- Populate project‑id drop‑down -------- */
-    async function loadProjectIds() {
-      const resp = await fetch('/api/projectids');
-      const ids  = await resp.json(); 
-      const sel  = document.getElementById('project-id');
-      ids.forEach(id => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = id;
-        sel.appendChild(opt);
-      });
+<script>
+  /* -------- Populate project‑id drop‑down -------- */
+  async function loadProjectIds() {
+    const resp = await fetch('/api/projectids');
+    const ids  = await resp.json();
+    const sel  = document.getElementById('project-id');
+    ids.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = id;
+      sel.appendChild(opt);
+    });
+  }
+
+  const renderGraph = () => {
+    // hide all
+    const chartIds = [
+      'hourly-active','hourly-compute','hourly-written','hourly-storage',
+      'daily-active','daily-compute','daily-written','daily-storage',
+      'monthly-active','monthly-compute','monthly-written','monthly-storage'
+    ];
+    chartIds.forEach(id => document.getElementById(id).style.display = 'none');
+
+    const timescale = document.getElementById('timescale').value.trim();
+    let prefix, title;
+    switch (timescale) {
+      case 'hourly':  prefix = 'hourly';  title =  { text:'Hourly Consumption'}; break;
+      case 'daily':   prefix = 'daily';   title = { text:'Daily Consumption'}; break;
+      case 'monthly': prefix = 'monthly'; title = { text:'Monthly Consumption'}; break;
+      default: return null;
     }
+    // show the 4 charts for this timescale
+    ['active','compute','written','storage'].forEach(m =>  
+      document.getElementById(`${prefix}-${m}`).style.display = 'block');
+    return ['/api/consumption/' + timescale, prefix, title, timescale];
+  };
 
-    const renderGraph = () => {
-      // hide all
-      const chartIds = ['hourly-active','hourly-compute','hourly-written','hourly-storage',
-                        'daily-active','daily-compute','daily-written','daily-storage',
-                        'monthly-active','monthly-compute','monthly-written','monthly-storage'];
-      chartIds.forEach(id => document.getElementById(id).style.display = 'none');
+  const dorender = () => {
+    const proj = document.getElementById('project-id').value.trim();
+    const params = renderGraph();
+    if (!params) return;
+    const [endpoint, prefix, title, timescale] = params;
 
-      const timescale = document.getElementById('timescale').value.trim();
-      let prefix, title;
-      switch (timescale) {
-        case 'hourly':  prefix = 'hourly';  title =  { text:'Hourly Consumption'}; break;
-        case 'daily':   prefix = 'daily';   title = { text:'Daily Consumption'}; break;
-        case 'monthly': prefix = 'monthly'; title = { text:'Monthly Consumption'}; break;
-        default: return null;
-      }
-      // show the 4 charts for this timescale
-      ['active','compute','written','storage'].forEach(m =>  
-        document.getElementById(`${prefix}-${m}`).style.display = 'block');
+    async function fetchAndPlot() {
+      const res  = await fetch(`${endpoint}?project_id=${proj}`);
+      const data = await res.json();
 
-      return ['/api/consumption/' + timescale, prefix, title];
-    };
+      /* ── x‑axis values ── */
+      const x = data.map(r => new Date(r.timeframe_start));   // keep full date
 
-    const dorender = () => {
-      const proj = document.getElementById('project-id').value.trim();
-      const params = renderGraph();
-      if (!params) return;
-      const [endpoint, prefix, title] = params;
-
-      async function fetchAndPlot() {
-        const res  = await fetch(`${endpoint}?project_id=${proj}`);
-        const data = await res.json();
-
-        const x = data.map(r => r.timeframe_start);
-        const y = {
+      /* ── y‑axis values ── */
+      const y = {
           active:  data.map(r => r.active_time_seconds),
           compute: data.map(r => r.compute_time_seconds),
           written: data.map(r => r.written_data_bytes),
           storage: data.map(r => r.synthetic_storage_size_bytes)
-        };
-        const names = { active:'Active Time (seconds)', compute:'Compute Time (seconds)',
-                        written:'Written Data (seconds)', storage:'Storage Size (bytes)' };
+      };
 
-        ['active','compute','written','storage'].forEach(metric => {
-          const trace = { x, y: y[metric], type:'scatter',
-                          mode:'lines+markers', name:names[metric] };
-          const layout = { title:{ text:names[metric]}, xaxis:{title:'Time'},
-                           yaxis:{title:'Seconds / Bytes'}, responsive:true };
-          Plotly.newPlot(`${prefix}-${metric}`, [trace], layout);
-        });
+      const names = {
+        active:   'Active Time (seconds)',
+        compute:  'Compute Time (seconds)',
+        written:  'Written Data (bytes)',
+        storage:  'Storage Size (bytes)'
+      };
+
+      /* ── choose tick format per timescale ── */
+      let tickFormat;
+      switch (timescale) {
+        case 'hourly':  tickFormat = '%d %b - %H:%M'; break;   // “15 Dec – 02:00”
+        case 'daily':   tickFormat = '%Y-%m-%d';   break;     // unchanged
+        case 'monthly': tickFormat = '%Y %b';     break;     // “2025 Dec”
       }
 
-      fetchAndPlot();
+      ['active','compute','written','storage'].forEach(metric => {
+        const trace = {
+          x, y: y[metric], type: 'scatter',
+          mode: 'lines+markers', name: names[metric]
+        };
+        const layout = {
+          title: { text: names[metric] },
+          xaxis: { title: 'Time', tickformat: tickFormat },
+          yaxis: { title: 'Seconds / Bytes' },
+          responsive: true
+        };
+        Plotly.newPlot(`${prefix}-${metric}`, [trace], layout);
+      });
     }
 
-    document.getElementById('timescale').addEventListener('change', dorender);
-    document.getElementById('project-id').addEventListener('change', dorender);
+    fetchAndPlot();
+  };
 
-    loadProjectIds();
-    dorender();
-  </script>
+  document.getElementById('timescale').addEventListener('change', dorender);
+  document.getElementById('project-id').addEventListener('change', dorender);
+
+  loadProjectIds();
+  dorender();
+</script>
 </body>
 </html>
