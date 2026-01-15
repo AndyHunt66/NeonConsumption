@@ -39,77 +39,110 @@
 </div>
 
 <script>
+
+
+/* ---- keep the same color for every project ---- */
+const projectColors = {};               // projectID → color
+const colorScale   = d3.scale.category10();
+
 async function loadProjectIds() {
-  const ids  = await fetch('/api/projectids').then(r=>r.json());
-  const list = document.getElementById('project-list');
-  ids.forEach(id=>{
-    const chk = document.createElement('input');
-    chk.type   = 'checkbox';
-    chk.id     = 'proj-'+id;
-    chk.value  = id;
-    chk.className = 'proj-chk';
-    const lbl = document.createElement('label');
-    lbl.htmlFor = chk.id;
-    lbl.textContent = id;
-    list.appendChild(chk);
-    list.appendChild(lbl);
-    list.appendChild(document.createElement('br'));
-  });
+    const ids  = await fetch('/api/projectids').then(r=>r.json());
+    const list = document.getElementById('project-list');
+    ids.forEach((id,i)=>{
+        // create a unique, stable colour for the project
+        projectColors[id] = colorScale(i % 10);
+
+        const chk = document.createElement('input');
+        chk.type  = 'checkbox';
+        chk.id    = 'proj-'+id;
+        chk.value = id;
+        chk.className = 'proj-chk';
+
+        const lbl = document.createElement('label');
+        lbl.htmlFor  = chk.id;
+        lbl.textContent = id;
+
+        list.append(chk);          // no <br> – the grid does the wrapping
+        list.append(lbl);
+    });
 }
 
 async function dorender(timescale) {
-  const projects  = Array.from(document.querySelectorAll('.proj-chk:checked'))
-                         .map(chk=>chk.value);
-  document.querySelectorAll('#charts > div').forEach(d=>d.style.display='none');
-  if (!projects.length) return;
+    const projects = Array.from(
+        document.querySelectorAll('.proj-chk:checked')
+    ).map(chk=>chk.value);
 
-  const metrics = ['active','compute','written','storage'];
-  const metricNames = {
-    active:   'Active Time (seconds)',
-    compute:  'Compute Time (seconds)',
-    written:  'Written Data (bytes)',
-    storage:  'Storage Size (bytes)'
-  };
-  const tickFormat = {
-    hourly: '%d %b - %H:%M',
-    daily:  '%Y-%m-%d',
-    monthly:'%Y %b'
-  }[timescale];
-  metrics.forEach(m=>document.getElementById(`${timescale}-${m}`).style.display='block');
+    document.querySelectorAll('#charts > div')
+        .forEach(d=>d.style.display='none');
 
-  const colors = d3.scale.category10();
-  const traces = {};
-  await Promise.all(projects.map(async (proj,idx)=>{
-    const res  = await fetch(`/api/consumption/${timescale}?project_id=${proj}`);
-    const data = await res.json();
-    const x = data.map(r=>new Date(r.timeframe_start));
-    const y = {
-      active:   data.map(r=>r.active_time_seconds),
-      compute:  data.map(r=>r.compute_time_seconds),
-      written:  data.map(r=>r.written_data_bytes),
-      storage:  data.map(r=>r.synthetic_storage_size_bytes)
+    if (!projects.length) return;
+
+    const metrics = ['active','compute','written','storage'];
+    const metricNames = {
+        active  : 'Active Time (seconds)',
+        compute : 'Compute Time (seconds)',
+        written : 'Written Data (bytes)',
+        storage : 'Storage Size (bytes)'
     };
-    metrics.forEach(m=>{
-      if (!traces[m]) traces[m]=[];
-      traces[m].push({
-        x, y: y[m],
-        mode: 'lines+markers',
-        name: proj,
-        line: { color: colors(idx % 10) },
-        marker: { size: 6 }
-      });
+    const tickFormat = {
+        hourly  : '%d %b - %H:%M',
+        daily   : '%Y-%m-%d',
+        monthly : '%Y %b'
+    }[timescale];
+
+    metrics.forEach(m=>document.getElementById(`${timescale}-${m}`).style.display='block');
+
+    /* ---- create one trace per project, keep colour consistent ---- */
+    const traces = {};
+    await Promise.all(projects.map(async (proj,idx)=>{
+        const res  = await fetch(`/api/consumption/${timescale}?project_id=${proj}`);
+        const data = await res.json();
+
+        const x = data.map(r=>new Date(r.timeframe_start));
+        const y = {
+            active  : data.map(r=>r.active_time_seconds),
+            compute : data.map(r=>r.compute_time_seconds),
+            written : data.map(r=>r.written_data_bytes),
+            storage : data.map(r=>r.synthetic_storage_size_bytes)
+        };
+
+        metrics.forEach(m=>{
+            if (!traces[m]) traces[m] = [];
+            traces[m].push({
+                x, y: y[m],
+                mode:'lines+markers',
+                name: proj,
+                line:{color: projectColors[proj]},
+                marker:{size:6}
+            });
+        });
+    }));
+
+    /* ---- sort traces alphabetically before drawing ---- */
+    Object.keys(traces).forEach(m=>{
+        traces[m].sort((a,b)=>a.name.localeCompare(b.name));
     });
-  }));
-  metrics.forEach(m=>{
-    const layout = {
-      title: metricNames[m],
-      xaxis: { title:'Time', tickformat: tickFormat },
-      yaxis: { title:'Seconds / Bytes' },
-      legend: { x:1, y:0.5, bgcolor:'rgba(255,255,255,0.5)' },
-      responsive:true
-    };
-    Plotly.newPlot(`${timescale}-${m}`, traces[m], layout);
-  });
+
+    metrics.forEach(m=>{
+        const layout = {
+            title  : metricNames[m],
+            // width  : '100%',
+            height : 600,
+            xaxis  : { title:'Time', tickformat:tickFormat },
+            yaxis  : { title:'Seconds / Bytes' },
+            legend : {
+                x        : 0.99,
+                y        : 0.5,
+                orientation: 'v',
+                bgcolor  : 'rgba(255,255,255,0.9)',
+                bordercolor:'rgba(0,0,0,0.2)',
+                // borderwidth:1,
+                traceorder:'normal'           /* alphabetical order */
+            },
+            responsive : true
+        };
+        Plotly.newPlot(`${timescale}-${m}`, traces[m], layout);
+    });
 }
 
 document.querySelectorAll('.tab-btn').forEach(btn=>{
