@@ -98,14 +98,7 @@
         ['active','compute','written','storage'].forEach(metric => {
           const trace = { x, y: y[metric], type:'scatter',
                           mode:'lines+markers', name:names[metric] };
-          let tick;
-          switch (prefix){
-            case 'hourly':  tick = "%H~%M~%S.%2f" ; break; 
-            case 'daily':   tick = "%H~%M~%S.%2f"  ; break;
-            case 'monthly': tick = "%H~%M~%S.%2f"  ; break;
-            default: return null;
-          }
-          const layout = { title:{ text:names[metric]}, xaxis:{title:'Time', tickformat:"%H" },
+          const layout = { title:{ text:names[metric]}, xaxis:{title:'Time'},
                            yaxis:{title:'Seconds / Bytes'}, responsive:true };
           Plotly.newPlot(`${prefix}-${metric}`, [trace], layout);
         });
