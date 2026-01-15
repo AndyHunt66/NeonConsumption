@@ -5,34 +5,36 @@
   <title>Consumption Visualizer</title>
   <link rel="stylesheet" href="static/style.css">
   <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
-  <style>
-    /* simple vertical stack */
-    #charts div { margin-bottom: 30px; }
-  </style>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  
+  <style>#charts div{margin-bottom:30px;}</style>
 </head>
 <body>
   <h1>Project Consumption Dashboard</h1>
-
   <div class="controls">
-    <label for="project-id">Project:</label>
-    <select id="project-id"></select>
-    <select id="timescale">
-      <option value="hourly">Hourly</option>
-      <option value="daily">Daily</option>
-      <option value="monthly">Monthly</option>
-    </select>
-  </div>
-
-  <!-- 4 separate divs for the 4 metrics -->
+  <label>Project:</label>
+  <div id="project-list"></div>          <!-- check‑boxes go here -->
+  <label for="timescale">Timescale:</label>
+  <select id="timescale">
+    <option value="hourly">Hourly</option>
+    <option value="daily">Daily</option>
+    <option value="monthly">Monthly</option>
+  </select>
+</div>
+  
+  
+  
   <div id="charts">
     <div id="hourly-active"></div>
     <div id="hourly-compute"></div>
     <div id="hourly-written"></div>
     <div id="hourly-storage"></div>
+
     <div id="daily-active"></div>
     <div id="daily-compute"></div>
     <div id="daily-written"></div>
     <div id="daily-storage"></div>
+
     <div id="monthly-active"></div>
     <div id="monthly-compute"></div>
     <div id="monthly-written"></div>
@@ -40,101 +42,99 @@
   </div>
 
 <script>
-  /* -------- Populate project‑id drop‑down -------- */
-  async function loadProjectIds() {
-    const resp = await fetch('/api/projectids');
-    const ids  = await resp.json();
-    const sel  = document.getElementById('project-id');
-    ids.forEach(id => {
-      const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = id;
-      sel.appendChild(opt);
-    });
-  }
+async function loadProjectIds() {
+  const ids  = await fetch('/api/projectids').then(r=>r.json());
+  const list = document.getElementById('project-list');
+  ids.forEach(id=>{
+    const chk = document.createElement('input');
+    chk.type   = 'checkbox';
+    chk.id     = 'proj-'+id;
+    chk.value  = id;
+    chk.className = 'proj-chk';
+    const lbl = document.createElement('label');
+    lbl.htmlFor = chk.id;
+    lbl.textContent = id;
+    list.appendChild(chk);
+    list.appendChild(lbl);
+    list.appendChild(document.createElement('br'));
+  });
+}
+ /* ----- Build & show graphs ----- */
+async function dorender() {
+  const timescale = document.getElementById('timescale').value.trim();
+  const projects  = Array.from(document.querySelectorAll('.proj-chk:checked'))
+                         .map(chk=>chk.value);
 
-  const renderGraph = () => {
-    // hide all
-    const chartIds = [
-      'hourly-active','hourly-compute','hourly-written','hourly-storage',
-      'daily-active','daily-compute','daily-written','daily-storage',
-      'monthly-active','monthly-compute','monthly-written','monthly-storage'
-    ];
-    chartIds.forEach(id => document.getElementById(id).style.display = 'none');
+  document.querySelectorAll('#charts > div').forEach(d=>d.style.display='none');
 
-    const timescale = document.getElementById('timescale').value.trim();
-    let prefix, title;
-    switch (timescale) {
-      case 'hourly':  prefix = 'hourly';  title =  { text:'Hourly Consumption'}; break;
-      case 'daily':   prefix = 'daily';   title = { text:'Daily Consumption'}; break;
-      case 'monthly': prefix = 'monthly'; title = { text:'Monthly Consumption'}; break;
-      default: return null;
-    }
-    // show the 4 charts for this timescale
-    ['active','compute','written','storage'].forEach(m =>  
-      document.getElementById(`${prefix}-${m}`).style.display = 'block');
-    return ['/api/consumption/' + timescale, prefix, title, timescale];
+  if (!projects.length) return;              // nothing selected → nothing shown
+
+  const prefix = timescale;                   // "hourly","daily","monthly"
+  const metrics = ['active','compute','written','storage'];
+  const metricNames = {
+    active:   'Active Time (seconds)',
+    compute:  'Compute Time (seconds)',
+    written:  'Written Data (bytes)',
+    storage:  'Storage Size (bytes)'
   };
+  const tickFormat = {
+    hourly: '%d %b - %H:%M',
+    daily:  '%Y-%m-%d',
+    monthly:'%Y %b'
+  }[timescale];
 
-  const dorender = () => {
-    const proj = document.getElementById('project-id').value.trim();
-    const params = renderGraph();
-    if (!params) return;
-    const [endpoint, prefix, title, timescale] = params;
+  /* show the four charts for this timescale */
+  metrics.forEach(m=>document.getElementById(`${prefix}-${m}`).style.display='block');
 
-    async function fetchAndPlot() {
-      const res  = await fetch(`${endpoint}?project_id=${proj}`);
-      const data = await res.json();
+  /* colour scheme */
 
-      /* ── x‑axis values ── */
-      const x = data.map(r => new Date(r.timeframe_start));   // keep full date
+  const colors = d3.scale.category10();
+ 
+  /* build one trace per project per metric */
+  const traces = {};
+  await Promise.all(projects.map(async (proj,idx)=>{
+    const res  = await fetch(`/api/consumption/${timescale}?project_id=${proj}`);
+    const data = await res.json();
 
-      /* ── y‑axis values ── */
-      const y = {
-          active:  data.map(r => r.active_time_seconds),
-          compute: data.map(r => r.compute_time_seconds),
-          written: data.map(r => r.written_data_bytes),
-          storage: data.map(r => r.synthetic_storage_size_bytes)
-      };
+    const x = data.map(r=>new Date(r.timeframe_start));
+    const y = {
+      active:   data.map(r=>r.active_time_seconds),
+      compute:  data.map(r=>r.compute_time_seconds),
+      written:  data.map(r=>r.written_data_bytes),
+      storage:  data.map(r=>r.synthetic_storage_size_bytes)
+    };
 
-      const names = {
-        active:   'Active Time (seconds)',
-        compute:  'Compute Time (seconds)',
-        written:  'Written Data (bytes)',
-        storage:  'Storage Size (bytes)'
-      };
-
-      /* ── choose tick format per timescale ── */
-      let tickFormat;
-      switch (timescale) {
-        case 'hourly':  tickFormat = '%d %b - %H:%M'; break;   // “15 Dec – 02:00”
-        case 'daily':   tickFormat = '%Y-%m-%d';   break;     // unchanged
-        case 'monthly': tickFormat = '%Y %b';     break;     // “2025 Dec”
-      }
-
-      ['active','compute','written','storage'].forEach(metric => {
-        const trace = {
-          x, y: y[metric], type: 'scatter',
-          mode: 'lines+markers', name: names[metric]
-        };
-        const layout = {
-          title: { text: names[metric] },
-          xaxis: { title: 'Time', tickformat: tickFormat },
-          yaxis: { title: 'Seconds / Bytes' },
-          responsive: true
-        };
-        Plotly.newPlot(`${prefix}-${metric}`, [trace], layout);
+    metrics.forEach(m=>{
+      if (!traces[m]) traces[m]=[];
+      traces[m].push({
+        x, y: y[m],
+        mode: 'lines+markers',
+        name: proj,
+        line: { color: colors(idx % 10) },
+        marker: { size: 6 }
       });
-    }
+    });
+  }));
 
-    fetchAndPlot();
-  };
+  /* plot each metric */
+  metrics.forEach(m=>{
+    const layout = {
+      title: metricNames[m],
+      xaxis: { title:'Time', tickformat: tickFormat },
+      yaxis: { title:'Seconds / Bytes' },
+      legend: { x:1, y:0.5, bgcolor:'rgba(255,255,255,0.5)' },
+      responsive:true
+    };
+    Plotly.newPlot(`${prefix}-${m}`, traces[m], layout);
+  });
+}
 
-  document.getElementById('timescale').addEventListener('change', dorender);
-  document.getElementById('project-id').addEventListener('change', dorender);
+/* event hooks */
+document.getElementById('timescale').addEventListener('change', dorender);
+document.getElementById('project-list').addEventListener('change', dorender);
 
-  loadProjectIds();
-  dorender();
+/* init */
+loadProjectIds().then(dorender);
 </script>
 </body>
 </html>
