@@ -125,7 +125,7 @@ async function dorender(timescale) {
 
     metrics.forEach(m=>{
         const layout = {
-            title  : metricNames[m],
+            title  : { text: metricNames[m]},
             // width  : '100%',
             height : 600,
             xaxis  : { title:'Time', tickformat:tickFormat },
