@@ -5,27 +5,21 @@ import psycopg2.extras
 
 app = Flask(__name__)
 
-# ------------------------------------------------------------------
-# 1️⃣  Connection setup – read from env or hard‑code temporarily
-# ------------------------------------------------------------------
+# Connection setup – read from env or hard‑code temporarily
 # Example:""postgresql://neondb_owner:npg_abcdefg@ep-gold-treasure-abcdefgh-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_abcdefg@ep-gold-treasure-abcdefgh-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
 
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
-# ------------------------------------------------------------------
-# 2️⃣  Helper to run a query and return JSON‑serialisable rows
-# ------------------------------------------------------------------
+# Helper to run a query and return JSON‑serialisable rows
 def run_query(sql, params=None):
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
             return cur.fetchall()
 
-# ------------------------------------------------------------------
-# 3️⃣  API endpoint
-# ------------------------------------------------------------------
+# API endpoint
 @app.route("/api/consumption/<granularity>")
 def api_consumption(granularity):
     project_id = request.args.get("project_id")
@@ -44,16 +38,10 @@ def api_project_ids():
 
     return jsonify(projects)
 
-# ------------------------------------------------------------------
-# 4️⃣  Main page
-# ------------------------------------------------------------------
+# Main page
 @app.route("/")
 def index():
-    # You can pass a default project id here or let the JS ask the user
     return render_template("index.html")
 
-# ------------------------------------------------------------------
-# 5️⃣  Run the app
-# ------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
