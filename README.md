@@ -1,7 +1,7 @@
 # Neon Consumption graph generator
 
 
-This project takes the consumption data from Neon's project consumption API, pushes it to a Neon database for historical reporting and provides a small Flask web app to display the data graphically.
+This project takes the consumption data from Neon's project consumption API, pushes it to a postgresql database for historical reporting and provides a small Flask web app to display the data graphically.
 
 
 ### Getting started
